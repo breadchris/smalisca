@@ -35,7 +35,7 @@
 import abc
 
 
-class AnalysisBase(metaclass=abc.ABCMeta):
+class AnalysisBase(abc.ABCMeta):
     """Basic analysis class
 
     Provides abstract methods how to interact with the results.

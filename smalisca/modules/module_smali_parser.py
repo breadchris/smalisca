@@ -75,11 +75,41 @@ class SmaliParser(ModuleBase):
         with codecs.open(filename, 'r', encoding='utf8') as f:
             current_class = None
             current_method = None
+            current_annotation = None
             current_call_index = 0
 
             # Read line by line
             for l in f.readlines():
-                if '.class' in l:
+
+                if '.annotation' in l:
+                    annotation_class = self.is_annotation(l)
+                    if annotation_class:
+                        current_annotation = {
+                            "class": annotation_class,
+                            "value": "",
+                        }
+
+                elif '.end annotation' in l:
+                    if current_method != None:
+                        current_method["annotations"].append(current_annotation)
+                    elif current_class != None:
+                        current_class["annotations"].append(current_annotation)
+                    else:
+                        log.error("Annotation does not have an owner: %s" % annotation_class)
+
+                    current_annotation = None
+                    
+                elif current_annotation != None:
+                    # TODO: Proper parsing of annotations
+                    stripped_line = l.strip()
+                    if stripped_line == "value = {" or stripped_line == "}":
+                        continue
+
+                    match = re.search("\"(?P<value>.*)\"", stripped_line)
+                    if match:
+                        current_annotation["value"] += match.group('value')
+
+                elif '.class' in l:
                     match_class = self.is_class(l)
                     if match_class:
                         current_class = self.extract_class(match_class)
@@ -229,6 +259,24 @@ class SmaliParser(ModuleBase):
         else:
             return None
 
+    def is_annotation(self, line):
+        """Check if line contains an annotation definition
+
+        Args:
+            line (str): Text line to be checked
+
+        Returns:
+            bool: True if line contains annotation information, otherwise False
+
+        """
+        match = re.search("\.annotation\s+(?P<type>[a-z]+)\s+(?P<class>.*)$", line)
+        if match:
+            log.debug("\t\tFound annotation: %s" % match.group('class'))
+            return match.group('class')
+        else:
+            log.debug("\t\tNot annotation: %s" % line)
+            return None
+
     def is_method_call(self, line):
         """Check [MaÔif the line contains a method call (invoke-*)
 
@@ -281,7 +329,10 @@ class SmaliParser(ModuleBase):
             'const-strings': [],
 
             # Methods
-            'methods': []
+            'methods': [],
+
+            # Annotations
+            'annotations': [],
         }
 
         return c
@@ -385,7 +436,10 @@ class SmaliParser(ModuleBase):
             'type': " ".join(method_info[:-1]),
 
             # Calls
-            'calls': []
+            'calls': [],
+
+            # Annotations
+            'annotations': [],
         }
 
         return m
